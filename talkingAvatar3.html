@@ -1,0 +1,415 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "load SVG error";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talking Cartoon Boy Avatar with External SVG Files</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; }
+        .avatar-container { margin: 20px; }
+        .avatar { width: 520px; height: 610px; }
+        textarea { width: 300px; height: 100px; margin: 10px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        select, input[type="file"] { margin: 10px; padding: 5px; }
+        h1, h2 { color: #333; }
+        p { max-width: 500px; margin: 10px auto; }
+        #mouth path { transition: opacity 0.05s ease; }
+    </style>
+</head>
+<body>
+    <h1>Talking Cartoon Boy Avatar</h1>
+    <div class="avatar-container">
+        <h2 id="avatar-name">Boy 1 (Spiky Hair)</h2>
+        <svg id="avatar" class="avatar" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="#ffe0bd" stroke="#333" stroke-width="2"/>
+            <path d="M30 30 L40 10 L50 20 L60 10 L70 30" fill="#000"/>
+            <circle cx="40" cy="45" r="5" fill="#fff" stroke="#333" stroke-width="1"/>
+            <circle cx="60" cy="45" r="5" fill="#fff" stroke="#333" stroke-width="1"/>
+            <circle cx="40" cy="45" r="2" fill="#000"/>
+            <circle cx="60" cy="45" r="2" fill="#000"/>
+            <g id="mouth">
+                <path id="mouth-closed" d="M45 60 H55" stroke="#333" stroke-width="2" fill="none"/>
+                <path id="mouth-open" d="M45 60 Q50 65 55 60" stroke="#333" stroke-width="2" fill="none" style="display: none;"/>
+                <path id="mouth-wide" d="M40 60 Q50 70 60 60" stroke="#333" stroke-width="2" fill="none" style="display: none;"/>
+                <path id="mouth-narrow" d="M47 60 Q50 64 53 60" stroke="#333" stroke-width="2" fill="none" style="display: none;"/>
+                <path id="mouth-fv" d="M45 60 Q50 62 55 60" stroke="#333" stroke-width="2" fill="none" style="display: none;"/>
+            </g>
+        </svg>
+    </div>
+    <div>
+        <label for="avatar-select">Choose Avatar: </label>
+        <select id="avatar-select" onchange="changeAvatar()">
+            <option value="boy1" selected>Boy 1 (Spiky Hair)</option>
+            <option value="boy2">Boy 2 (Curly Hair)</option>
+        </select>
+        <br>
+        <label for="custom-svg">Upload Custom SVG: </label>
+        <input type="file" id="custom-svg" accept=".svg" onchange="loadCustomSVG()">
+        <p><small>Note: Custom SVGs must include a <g id="mouth"> with <path> elements for <code>mouth-closed</code>, <code>mouth-open</code>, <code>mouth-wide</code>, <code>mouth-narrow</code>, and <code>mouth-fv</code>.</small></p>
+        <textarea id="speechText" placeholder="Enter text for the avatar to speak..."></textarea>
+        <br>
+        <button onclick="speak()">Make Avatar Speak</button>
+    </div>
+
+    <script>
+        // Sample phoneme dictionary (50 words for brevity)
+        let phonemeDict = {
+            "the": ["DH", "AH"],
+            "boy": ["B", "OY"],
+            "hello": ["HH", "EH", "L", "OW"],
+            "good": ["G", "UH", "D"],
+            "morning": ["M", "AO", "R", "N", "IH", "NG"],
+            "is": ["IH", "Z"],
+            "a": ["AH"],
+            "cartoon": ["K", "AA", "R", "T", "UW", "N"],
+            "avatar": ["AE", "V", "AH", "T", "AA", "R"],
+            "talking": ["T", "AO", "K", "IH", "NG"]
+            // ... (sample subset; full 5k-word dictionary in phonemes.json)
+        };
+
+        // Load phonemes.json if available
+        fetch('phonemes.json')
+            .then(res => res.json())
+            .then(data => phonemeDict = data)
+            .catch(err => console.warn('Failed to load phonemes.json, using sample dictionary:', err));
+
+        // Phoneme-to-viseme mapping
+        const visemeMap = {
+            "P": "closed", "B": "closed", "M": "closed",
+            "F": "fv", "V": "fv",
+            "TH": "open", "DH": "open",
+            "T": "open", "D": "open", "S": "open", "Z": "open", "N": "open", "L": "open",
+            "K": "open", "G": "open", "HH": "open",
+            "AE": "open", "EH": "open", "IH": "open", "AH": "open",
+            "AA": "wide", "AO": "wide", "ER": "wide",
+            "IY": "wide", "EY": "wide", "AY": "wide", "OY": "wide",
+            "UW": "narrow", "OW": "narrow", "AW": "narrow",
+            "W": "narrow", "R": "narrow", "Y": "wide",
+            "SH": "open", "ZH": "open", "CH": "open", "JH": "open"
+        };
+
+        // Phoneme durations (ms)
+        const phonemeDurations = {
+            "P": 60, "B": 60, "M": 60, "F": 70, "V": 70, "TH": 80, "DH": 80,
+            "T": 60, "D": 60, "S": 70, "Z": 70, "N": 60, "L": 70,
+            "K": 60, "G": 60, "HH": 50, "SH": 70, "ZH": 70, "CH": 70, "JH": 70,
+            "AE": 120, "EH": 120, "IH": 120, "AH": 120,
+            "AA": 150, "AO": 150, "ER": 140,
+            "IY": 130, "EY": 140, "AY": 180, "OY": 180,
+            "UW": 130, "OW": 180, "AW": 180,
+            "W": 80, "R": 80, "Y": 80
+        };
+
+        // Improved G2P rules
+        const g2pRules = {
+            patterns: [
+                { pattern: "ph", phonemes: ["F"] },
+                { pattern: "tion", phonemes: ["SH", "AH", "N"] },
+                { pattern: "sh", phonemes: ["SH"] },
+                { pattern: "ch", phonemes: ["CH"] },
+                { pattern: "th", phonemes: ["TH"] },
+                { pattern: "a", phonemes: ["AE"] },
+                { pattern: "e", phonemes: ["EH"] },
+                { pattern: "i", phonemes: ["IH"] },
+                { pattern: "o", phonemes: ["AA"] },
+                { pattern: "u", phonemes: ["UH"] },
+                { pattern: "b", phonemes: ["B"] },
+                { pattern: "c", phonemes: ["K"] },
+                { pattern: "d", phonemes: ["D"] },
+                { pattern: "f", phonemes: ["F"] },
+                { pattern: "g", phonemes: ["G"] },
+                { pattern: "h", phonemes: ["HH"] },
+                { pattern: "j", phonemes: ["JH"] },
+                { pattern: "k", phonemes: ["K"] },
+                { pattern: "l", phonemes: ["L"] },
+                { pattern: "m", phonemes: ["M"] },
+                { pattern: "n", phonemes: ["N"] },
+                { pattern: "p", phonemes: ["P"] },
+                { pattern: "r", phonemes: ["R"] },
+                { pattern: "s", phonemes: ["S"] },
+                { pattern: "t", phonemes: ["T"] },
+                { pattern: "v", phonemes: ["V"] },
+                { pattern: "w", phonemes: ["W"] },
+                { pattern: "y", phonemes: ["Y"] },
+                { pattern: "z", phonemes: ["Z"] }
+            ]
+        };
+
+        // G2P fallback for missing words
+        function g2p(word) {
+            let phonemes = [];
+            let remaining = word.toLowerCase();
+            while (remaining.length > 0) {
+                let matched = false;
+                for (let rule of g2pRules.patterns) {
+                    if (remaining.startsWith(rule.pattern)) {
+                        phonemes.push(...rule.phonemes);
+                        remaining = remaining.slice(rule.pattern.length);
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    phonemes.push("AH");
+                    remaining = remaining.slice(1);
+                }
+            }
+            return phonemes;
+        }
+
+        // Get phonemes for text
+        function getPhonemes(text) {
+            const words = text.toLowerCase().split(/\s+/);
+            const phonemes = [];
+            for (let word of words) {
+                if (phonemeDict[word]) {
+                    phonemes.push(...phonemeDict[word]);
+                } else {
+                    phonemes.push(...g2p(word));
+                }
+            }
+            return phonemes;
+        }
+
+        // Split text into sentences
+        function splitSentences(text) {
+            return text.match(/[^.!?]+[.!?]|\S+/g) || [text];
+        }
+
+        // Change avatar by fetching SVG file
+        async function changeAvatar() {
+            const select = document.getElementById('avatar-select');
+            const avatar = document.getElementById('avatar');
+            const avatarName = document.getElementById('avatar-name');
+            const value = select.value;
+
+            try {
+                const response = await fetch(`${value}.svg`);
+                if (!response.ok) throw new Error(`Failed to load ${value}.svg`);
+                const svgText = await response.text();
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                const svgElement = svgDoc.querySelector('svg');
+                if (!svgElement) throw new Error('Invalid SVG file');
+
+                const innerContent = svgElement.innerHTML;
+                if (!innerContent.includes('id="mouth"') ||
+                    !innerContent.includes('id="mouth-closed"') ||
+                    !innerContent.includes('id="mouth-open"') ||
+                    !innerContent.includes('id="mouth-wide"') ||
+                    !innerContent.includes('id="mouth-narrow"') ||
+                    !innerContent.includes('id="mouth-fv"')) {
+                    throw new Error('SVG must include a <g id="mouth"> with required mouth shapes');
+                }
+
+                avatar.innerHTML = innerContent;
+                avatarName.textContent = value === 'boy1' ? 'Boy 1 (Spiky Hair)' : 'Boy 2 (Curly Hair)';
+            } catch (err) {
+                console.error('Error loading SVG:', err);
+                alert(`Failed to load ${value}.svg. Please ensure the file is in the same directory.`);
+            }
+        }
+
+        // Load custom SVG from file
+        function loadCustomSVG() {
+            const fileInput = document.getElementById('custom-svg');
+            const avatar = document.getElementById('avatar');
+            const avatarName = document.getElementById('avatar-name');
+            const file = fileInput.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const svgContent = e.target.result;
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
+                    const svgElement = svgDoc.querySelector('svg');
+                    if (!svgElement) {
+                        alert('Invalid SVG file!');
+                        return;
+                    }
+                    const innerContent = svgElement.innerHTML;
+                    if (!innerContent.includes('id="mouth"') ||
+                        !innerContent.includes('id="mouth-closed"') ||
+                        !innerContent.includes('id="mouth-open"') ||
+                        !innerContent.includes('id="mouth-wide"') ||
+                        !innerContent.includes('id="mouth-narrow"') ||
+                        !innerContent.includes('id="mouth-fv"')) {
+                        alert('Custom SVG must include a <g id="mouth"> with paths for mouth-closed, mouth-open, mouth-wide, mouth-narrow, and mouth-fv.');
+                        return;
+                    }
+                    avatar.innerHTML = innerContent;
+                    avatarName.textContent = 'Custom Avatar';
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // Global animation frame ID and speaking flag
+        let animationFrameId = null;
+        let isSpeaking = false;
+
+        // Animate mouth for a single sentence
+        function animateMouth(phonemes) {
+            const mouthGroup = document.getElementById('mouth');
+            if (!mouthGroup) {
+                alert('Avatar missing mouth group!');
+                return;
+            }
+            const mouths = ['closed', 'open', 'wide', 'narrow', 'fv'].map(shape => document.getElementById(`mouth-${shape}`));
+            if (mouths.some(mouth => !mouth)) {
+                alert('Avatar missing required mouth shapes!');
+                return;
+            }
+
+            // Reset mouth to closed
+            mouths.forEach(mouth => mouth.style.display = 'none');
+            mouths[0].style.display = 'block';
+
+            let phonemeIndex = 0;
+            let phonemeTime = 0;
+            let startTime;
+
+            function animateFrame(timestamp) {
+                if (!isSpeaking) {
+                    stopAnimation();
+                    return;
+                }
+
+                if (!startTime) startTime = timestamp;
+                const currentTime = timestamp - startTime;
+
+                // Cycle phonemes if needed with precise reset
+                if (phonemeIndex >= phonemes.length) {
+                    phonemeIndex = 0;
+                    phonemeTime = currentTime; // Align with current time
+                }
+
+                // Find current phoneme
+                while (phonemeIndex < phonemes.length && phonemeTime <= currentTime) {
+                    phonemeTime += phonemeDurations[phonemes[phonemeIndex]] || 80;
+                    phonemeIndex++;
+                }
+
+                // Display appropriate viseme
+                const displayIndex = Math.min(phonemeIndex, phonemes.length - 1);
+                const phoneme = phonemes[displayIndex] || phonemes[phonemes.length - 1];
+                const viseme = visemeMap[phoneme] || 'open';
+                mouths.forEach(mouth => mouth.style.display = 'none');
+                const targetMouth = mouths[['closed', 'open', 'wide', 'narrow', 'fv'].indexOf(viseme)];
+                targetMouth.style.display = 'block';
+                targetMouth.style.opacity = '1';
+
+                animationFrameId = requestAnimationFrame(animateFrame);
+            }
+
+            // Start animation
+            isSpeaking = true;
+            animationFrameId = requestAnimationFrame(animateFrame);
+        }
+
+        // Stop animation immediately
+        function stopAnimation() {
+            isSpeaking = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            const mouths = ['closed', 'open', 'wide', 'narrow', 'fv'].map(shape => document.getElementById(`mouth-${shape}`));
+            if (mouths.every(mouth => mouth)) {
+                mouths.forEach(mouth => mouth.style.display = 'none');
+                mouths[0].style.display = 'block';
+            }
+        }
+
+        // Speak and animate sentence-by-sentence
+        function speak() {
+            const text = document.getElementById('speechText').value;
+            if (!text) {
+                alert('Please enter some text!');
+                return;
+            }
+            if (Object.keys(phonemeDict).length === 0) {
+                alert('Phoneme dictionary is still loading. Please try again in a moment.');
+                return;
+            }
+
+            const sentences = splitSentences(text);
+            let sentenceIndex = 0;
+
+            function processSentence() {
+                if (sentenceIndex >= sentences.length) {
+                    stopAnimation();
+                    return;
+                }
+
+                const sentence = sentences[sentenceIndex].trim();
+                if (!sentence) {
+                    sentenceIndex++;
+                    processSentence();
+                    return;
+                }
+
+                const phonemes = getPhonemes(sentence);
+                const utterance = new SpeechSynthesisUtterance(sentence);
+                utterance.lang = 'en-US';
+                utterance.rate = 2.5;
+
+                utterance.onstart = () => {
+                    stopAnimation(); // Ensure previous animation is stopped
+                    animateMouth(phonemes);
+                };
+
+                utterance.onend = () => {
+                    stopAnimation(); // Stop immediately
+                    sentenceIndex++;
+                    processSentence();
+                };
+
+                speechSynthesis.speak(utterance);
+            }
+
+            processSentence();
+        }
+    </script>
+</body>
+</html>

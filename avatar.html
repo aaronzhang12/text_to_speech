@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Talking Cartoon Boy Avatar (HTML2)</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; }
+    .avatar-container { margin: 20px; }
+    .avatar { width: 520px; height: 610px; }
+    textarea { width: 300px; height: 100px; margin: 10px; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    select, input[type="file"] { margin: 10px; padding: 5px; }
+    h1, h2 { color: #333; }
+    p { max-width: 500px; margin: 10px auto; }
+    #mouth path { transition: opacity 0.05s ease; }
+  </style>
+</head>
+<body>
+  <h1>Talking Cartoon Boy Avatar</h1>
+  <div class="avatar-container">
+    <h2 id="avatar-name">Boy 1 (Spiky Hair)</h2>
+    <svg id="avatar" class="avatar" viewBox="0 0 100 100">
+      <!-- Default inline avatar (will be replaced on changeAvatar) -->
+      <circle cx="50" cy="50" r="40" fill="#ffe0bd" stroke="#333" stroke-width="2"/>
+      <path d="M30 30 L40 10 L50 20 L60 10 L70 30" fill="#000"/>
+      <circle cx="40" cy="45" r="5" fill="#fff" stroke="#333" stroke-width="1"/>
+      <circle cx="60" cy="45" r="5" fill="#fff" stroke="#333" stroke-width="1"/>
+      <circle cx="40" cy="45" r="2" fill="#000"/>
+      <circle cx="60" cy="45" r="2" fill="#000"/>
+      <g id="mouth">
+        <path id="mouth-closed" d="M45 60 H55" stroke="#333" stroke-width="2" fill="none"/>
+        <path id="mouth-open"   d="M45 60 Q50 65 55 60" stroke="#333" stroke-width="2" fill="none" style="display:none"/>
+        <path id="mouth-wide"   d="M40 60 Q50 70 60 60" stroke="#333" stroke-width="2" fill="none" style="display:none"/>
+        <path id="mouth-narrow" d="M47 60 Q50 64 53 60" stroke="#333" stroke-width="2" fill="none" style="display:none"/>
+        <path id="mouth-fv"     d="M45 60 Q50 62 55 60" stroke="#333" stroke-width="2" fill="none" style="display:none"/>
+      </g>
+    </svg>
+  </div>
+
+  <div>
+    <label for="avatar-select">Choose Avatar: </label>
+    <select id="avatar-select" onchange="changeAvatar()">
+      <option value="boy1a" selected>Boy 1 (Spiky Hair)</option>
+      <option value="boy2">Boy 2 (Curly Hair)</option>
+    </select>
+    <br>
+    <label for="custom-svg">Upload Custom SVG: </label>
+    <input type="file" id="custom-svg" accept=".svg" onchange="loadCustomSVG()">
+    <p><small>Note: Custom SVGs must include a <code>&lt;g id="mouth"&gt;</code> with paths for <code>mouth-closed</code>, <code>mouth-open</code>, <code>mouth-wide</code>, <code>mouth-narrow</code>, and <code>mouth-fv</code>.</small></p>
+    <textarea id="speechText" placeholder="Enter text for the avatar to speak..."></textarea>
+    <br>
+    <button onclick="speak()">Make Avatar Speak</button>
+  </div>
+
+  <script>
+    // --- Phoneme dictionary ---
+    let phonemeDict = {};
+    fetch('phonemes.json')
+      .then(res => res.json())
+      .then(data => phonemeDict = data)
+      .catch(err => console.warn('Using minimal phoneme dict until full load.', err));
+
+    // --- Viseme mapping ---
+    const visemeMap = {
+      P:'closed', B:'closed', M:'closed',
+      F:'fv', V:'fv',
+      TH:'open', DH:'open',
+      T:'open', D:'open', S:'open', Z:'open', N:'open', L:'open',
+      K:'open', G:'open', HH:'open',
+      AE:'open', EH:'open', IH:'open', AH:'open',
+      AA:'wide', AO:'wide', ER:'wide',
+      IY:'wide', EY:'wide', AY:'wide', OY:'wide',
+      UW:'narrow', OW:'narrow', AW:'narrow',
+      W:'narrow', R:'narrow', Y:'wide',
+      SH:'open', ZH:'open', CH:'open', JH:'open'
+    };
+
+    // --- Phoneme durations (ms) ---
+    const defaultDur = 80;
+    const phonemeDurations = Object.assign({}, {
+      P:60, B:60, M:60, F:70, V:70, TH:80, DH:80,
+      T:60, D:60, S:70, Z:70, N:60, L:70,
+      K:60, G:60, HH:50, SH:70, ZH:70, CH:70, JH:70,
+      AE:120, EH:120, IH:120, AH:120,
+      AA:150, AO:150, ER:140,
+      IY:130, EY:140, AY:180, OY:180,
+      UW:130, OW:180, AW:180,
+      W:80, R:80, Y:80
+    });
+
+    // --- G2P fallback ---
+    function g2p(word) {
+      const rules = [
+        ['ph',['F']], ['tion',['SH','AH','N']], ['sh',['SH']], ['ch',['CH']], ['th',['TH']],
+        ['a',['AE']], ['e',['EH']], ['i',['IH']], ['o',['AA']], ['u',['UH']],
+        ['b',['B']], ['c',['K']], ['d',['D']], ['f',['F']], ['g',['G']],
+        ['h',['HH']], ['j',['JH']], ['k',['K']], ['l',['L']], ['m',['M']],
+        ['n',['N']], ['p',['P']], ['r',['R']], ['s',['S']], ['t',['T']],
+        ['v',['V']], ['w',['W']], ['y',['Y']], ['z',['Z']]
+      ];
+      let phonemes=[], rem=word.toLowerCase();
+      while(rem) {
+        let matched=false;
+        for(let [pat,phones] of rules) {
+          if(rem.startsWith(pat)) { phonemes.push(...phones); rem=rem.slice(pat.length); matched=true; break; }
+        }
+        if(!matched) { phonemes.push('AH'); rem=rem.slice(1); }
+      }
+      return phonemes;
+    }
+
+    // --- Get phoneme list from text ---
+    function getPhonemes(text) {
+      return text.toLowerCase().split(/\s+/).flatMap(word =>
+        (phonemeDict[word] || g2p(word))
+      );
+    }
+
+    // --- Split into sentences ---
+    function splitSentences(text) {
+      return text.match(/[^.!?]+[.!?]/g) || [text];
+    }
+
+    // --- Avatar swapping ---
+    async function changeAvatar() {
+        const sel     = document.getElementById('avatar-select');
+        const avatar  = document.getElementById('avatar');
+        const nameH   = document.getElementById('avatar-name');
+        const val     = sel.value;            // e.g. 'boy1a' or 'boy2'
+        try {
+            const resp = await fetch(`${val}.svg`);
+            if (!resp.ok) throw new Error('Fetch failed');
+            const txt    = await resp.text();
+            const doc    = new DOMParser().parseFromString(txt, 'image/svg+xml');
+            const extSVG = doc.querySelector('svg');
+            if (!extSVG) throw new Error('No <svg> found');
+
+            // 1) Copy its viewBox (or width/height) so it scales/centers correctly:
+            const vb = extSVG.getAttribute('viewBox');
+            if (vb) {
+            avatar.setAttribute('viewBox', vb);
+            } else {
+            const w = extSVG.getAttribute('width'),
+                    h = extSVG.getAttribute('height');
+            if (w && h) avatar.setAttribute('viewBox', `0 0 ${w} ${h}`);
+            }
+
+            // 2) Inject its inner shapes (including <g id="mouth">…)
+            avatar.innerHTML = extSVG.innerHTML;
+
+            // 3) Update the label correctly for boy1a too
+            if (val === 'boy1'  || val === 'boy1a') {
+            nameH.textContent = 'Boy 1 (Spiky Hair)';
+            } else if (val === 'boy2') {
+            nameH.textContent = 'Boy 2 (Curly Hair)';
+            } else {
+            nameH.textContent = 'Custom Avatar';
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert(`Unable to load ${val}.svg. Check filename, viewBox and directory.`);
+        }
+    }
+
+    function loadCustomSVG() {
+      const inp = document.getElementById('custom-svg');
+      const avatar = document.getElementById('avatar');
+      const nameH = document.getElementById('avatar-name');
+      const file = inp.files[0];
+      if(!file) return;
+      const rdr = new FileReader();
+      rdr.onload = e => {
+        const svg = new DOMParser().parseFromString(e.target.result,'image/svg+xml').querySelector('svg');
+        if(!svg) return alert('Invalid SVG');
+        const inner = svg.innerHTML;
+        avatar.innerHTML = inner;
+        nameH.textContent = 'Custom Avatar';
+      };
+      rdr.readAsText(file);
+    }
+
+    // --- Time-based lip-sync schedule ---
+    let schedule=[], totalTime=0, startTs=0, rafId=null;
+    function showViseme(shape) {
+      ['closed','open','wide','narrow','fv'].forEach(s => {
+        document.getElementById(`mouth-${s}`).style.display = (s===shape? 'block':'none');
+      });
+    }
+    function resetMouth() { showViseme('closed'); }
+
+    function animateMouthFor(sentence) {
+      const phonemes = getPhonemes(sentence);
+      schedule = []; totalTime=0;
+      phonemes.forEach(ph => {
+        schedule.push({phoneme:ph, start:totalTime});
+        totalTime += (phonemeDurations[ph] || defaultDur);
+      });
+      if(rafId) cancelAnimationFrame(rafId);
+      startTs = performance.now();
+      rafId = requestAnimationFrame(animateFrame);
+    }
+
+    function animateFrame(now) {
+      const elapsed = now - startTs;
+      if(elapsed >= totalTime) { resetMouth(); rafId=null; return; }
+      let idx=0;
+      while(idx+1 < schedule.length && schedule[idx+1].start <= elapsed) idx++;
+      const vis = visemeMap[schedule[idx].phoneme] || 'open';
+      showViseme(vis);
+      rafId = requestAnimationFrame(animateFrame);
+    }
+
+    function speak() {
+      const text = document.getElementById('speechText').value.trim();
+      if(!text) return alert('Enter text!');
+      const sentences = splitSentences(text);
+      let i=0;
+      function next() {
+        if(i>=sentences.length) return;
+        const s = sentences[i++].trim(); if(!s) return next();
+        const utt = new SpeechSynthesisUtterance(s);
+        utt.lang = 'en-US'; utt.rate=1.0;
+        utt.onstart = () => { resetMouth(); animateMouthFor(s); };
+        utt.onend   = () => { resetMouth(); next(); };
+        speechSynthesis.speak(utt);
+      }
+      next();
+    }
+    changeAvatar();
+  </script>
+</body>
+</html>

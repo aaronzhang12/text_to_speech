@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 100 100"
+   version="1.1"
+   id="svg5"
+   sodipodi:docname="SVG1-old.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs5" />
+  <sodipodi:namedview
+     id="namedview5"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="6.72"
+     inkscape:cx="50"
+     inkscape:cy="50"
+     inkscape:window-width="1536"
+     inkscape:window-height="881"
+     inkscape:window-x="-7"
+     inkscape:window-y="-7"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="mouth" />
+  <circle
+     cx="50"
+     cy="50"
+     r="40"
+     fill="#ffe0bd"
+     stroke="#333"
+     stroke-width="2"
+     id="circle1" />
+  <path
+     d="M30 30 L40 10 L50 20 L60 10 L70 30"
+     fill="#000"
+     id="path1" />
+  <circle
+     cx="40"
+     cy="45"
+     r="5"
+     fill="#fff"
+     stroke="#333"
+     stroke-width="1"
+     id="circle2" />
+  <circle
+     cx="60"
+     cy="45"
+     r="5"
+     fill="#fff"
+     stroke="#333"
+     stroke-width="1"
+     id="circle3" />
+  <circle
+     cx="40"
+     cy="45"
+     r="2"
+     fill="#000"
+     id="circle4" />
+  <circle
+     cx="60"
+     cy="45"
+     r="2"
+     fill="#000"
+     id="circle5" />
+  <path
+     id="path2" />
+  <g
+     id="mouth">
+    <path
+       id="mouth-test"
+       d="M 40,140 H 55"
+       stroke="#333"
+       stroke-width="2"
+       fill="none" />
+    <path
+       id="mouth-closed"
+       d="M45 60 H55"
+       stroke="#333"
+       stroke-width="2"
+       fill="none" />
+    <path
+       id="mouth-open"
+       d="M45 60 Q50 65 55 60"
+       stroke="#333"
+       stroke-width="2"
+       fill="none"
+       style="display: none;" />
+    <path
+       id="mouth-wide"
+       d="M40 60 Q50 70 60 60"
+       stroke="#333"
+       stroke-width="2"
+       fill="none"
+       style="display: none;" />
+    <path
+       id="mouth-narrow"
+       d="M47 60 Q50 64 53 60"
+       stroke="#333"
+       stroke-width="2"
+       fill="none"
+       style="display: none;" />
+    <path
+       id="mouth-fv"
+       d="M45 60 Q50 62 55 60"
+       stroke="#333"
+       stroke-width="2"
+       fill="none"
+       style="display: none;" />
+    <path
+       id="path5"
+       fill="#600000"
+       d="M80,140 Q100,138 120,140 Q100,145 80,140 Z" />
+  </g>
+</svg>
